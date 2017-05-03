@@ -32,31 +32,8 @@ use POSIX qw(strftime);
 
 my %opt;
 
-my $email = "root\@oregonstate.edu";
-my $from_addr = "root\@brain.nws.oregonstate.edu";
-my $relay = "smtp.oregonstate.edu";
-
 sub get_time {
-    #my ($sec,$min,$hr,$md,$mo,$yr,$wo) = localtime();
-    #my $time = $hr.":".$min;
     my $time_now = strftime "%H:%M:%S", localtime;
-}
-
-sub send_mail {
-
-    my ($email, $subject, $text) = @_;
-    my $smtp = Net::SMTP->new($relay);
-    $smtp->mail($from_addr);
-    $smtp->to($email);
-    $smtp->data();
-    $smtp->datasend("From: $from_addr\n");
-    $smtp->datasend("To: $email\n");
-    $smtp->datasend("Subject: $subject\n");
-    $smtp->datasend("\n");
-    $smtp->datasend("Our mail relays are listed in the following RBL servers\n\n");
-    $smtp->datasend($text);
-    $smtp->datasend();
-    $smtp->quit;
 }
 
 GetOptions(\%opt,
@@ -162,25 +139,12 @@ while ($sel->handles > 0) {
     }
 }
 
-# No i don't care about the summary
-#if (@summary){
-#    print join(" ", (sort @summary));
-#    print "\n";
-#}
-
 if (@detail){
 
     my $text =  join("\n",(sort @detail));
 
-    if ($debug){
-        print "Our mail relays are listed on these RBL servers\n";
-        print $text;
-    }
-    else{
-        my $subject = "RBL check script for ". get_time();
-        chomp($subject);
-		send_mail($email, $subject, $text);
+    print "Our mail relays are listed on these RBL servers\n";
+    print $text;
     }
 }
-exit 1 if @summary;
 exit 0;
