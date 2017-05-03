@@ -145,6 +145,5 @@ if (@detail){
 
     print "Our mail relays are listed on these RBL servers\n";
     print $text;
-    }
 }
 exit 0;
