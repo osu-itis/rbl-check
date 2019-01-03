@@ -10,7 +10,7 @@
 # Added the send email feature
 
 my $usage="\
-Usage: rbl.monitor [options] hostname [...]
+Usage: rbl.monitor [options]
 
 Options [and default values]:
 
@@ -32,8 +32,31 @@ use POSIX qw(strftime);
 
 my %opt;
 
+my $email = "root\@oregonstate.edu";
+my $from_addr = "root\@oregonstate.edu";
+my $relay = "smtp.oregonstate.edu";
+
 sub get_time {
-    my $time_now = strftime "%H:%M:%S", localtime;
+    	#my ($sec,$min,$hr,$md,$mo,$yr,$wo) = localtime();
+    	#my $time = $hr.":".$min;
+	my $time_now = strftime "%H:%M:%S", localtime;
+}
+
+sub send_mail {
+
+	my ($email, $subject, $text) = @_;
+    	my $smtp = Net::SMTP->new($relay);
+    	$smtp->mail($from_addr);
+    	$smtp->to($email);
+    	$smtp->data();
+    	$smtp->datasend("From: $from_addr\n");
+    	$smtp->datasend("To: $email\n");
+    	$smtp->datasend("Subject: $subject\n");
+    	$smtp->datasend("\n");
+    	$smtp->datasend("Our mail relays are listed in the following RBL servers\n\n");
+    	$smtp->datasend($text);
+    	$smtp->datasend();
+    	$smtp->quit;
 }
 
 GetOptions(\%opt,
@@ -59,27 +82,36 @@ my @rbls2check=(
         "dnsbl.sorbs.net",
         "dnsbl-1.uceprotect.net",
         "xbl.spamhaus.org",
-        "sbl.spamhaus.org",
-        "list.dsbl.org",
-        "virbl.dnsbl.bit.nl",
+);
+
+my @hosts2check=(
+    "smtp-vp01.sig.oregonstate.edu",
+    "smtp-vp02.sig.oregonstate.edu",
+    "smtp-vp03.sig.oregonstate.edu",
+    "relay-vp01.sig.oregonstate.edu",
+    "relay-vp02.sig.oregonstate.edu",
+    "relay-vp03.sig.oregonstate.edu",
+    "exrelay-vp01.sig.oregonstate.edu",
+    "exrelay-vp02.sig.oregonstate.edu",
+    "exrelay-vp03.sig.oregonstate.edu",
 );
 
 if ($listfile) {
-    open(LIST, "< $listfile") ||
-        die "$0: cannot open list file \"$listfile\": $!\n";
-    @rbls2check= grep !/^\s*#/, <LIST>;
-    @rbls2check= grep !/^\s*$/, @rbls2check;
-    map {chomp} @rbls2check;
-    close LIST;
-        die "$0: no RBL names found in \"$listfile\"\n" unless @rbls2check;
+    	open(LIST, "< $listfile") ||
+        	die "$0: cannot open list file \"$listfile\": $!\n";
+    	@rbls2check= grep !/^\s*#/, <LIST>;
+    	@rbls2check= grep !/^\s*$/, @rbls2check;
+    	map {chomp} @rbls2check;
+    	close LIST;
+        	die "$0: no RBL names found in \"$listfile\"\n" unless @rbls2check;
 }
 
 if ($rbllist) {
-    @rbls2check= split(',', $rbllist);
+    	@rbls2check= split(',', $rbllist);
 }
 
 print "*** checking these RBLs:\n   " . join("\n   ", @rbls2check) . "\n"
-    if $debug;
+    	if $debug;
 
 my (@summary, @detail);
 my @sockets;
@@ -92,58 +124,71 @@ my $starttime= time;
 my %hostpart2host;
 
 # gethostbyname is non-reentrant, so do all the queries up front
-foreach my $host (@ARGV) {
-    my $hostdata= gethostbyname($host);
-    if (!defined($hostdata)) {
-        push @summary, $host;
-        push @detail, "$host: bad hostname";
-        next;
-    }
-    my $hostpart= join(".", reverse(unpack("C4", $hostdata)));
-    $hostpart2host{$hostpart}= $host;
+foreach my $host (@hosts2check) {
+    	my $hostdata= gethostbyname($host);
+    	if (!defined($hostdata)) {
+        	push @summary, $host;
+        	push @detail, "$host: bad hostname";
+        	next;
+    	}
+    	my $hostpart= join(".", reverse(unpack("C4", $hostdata)));
+    	$hostpart2host{$hostpart}= $host;
 }
 
 # start all the queries
 foreach my $hostpart (keys %hostpart2host) {
-    foreach my $rbl (@rbls2check) {
-        my $dnssock=  $res->bgsend(join(".", $hostpart, $rbl));
-        push @sockets, $dnssock;
-        $sel->add($dnssock);
-    }
+    	foreach my $rbl (@rbls2check) {
+        	my $dnssock=  $res->bgsend(join(".", $hostpart, $rbl));
+        	push @sockets, $dnssock;
+        	$sel->add($dnssock);
+    	}
 }
 
 MAINLOOP:
 while ($sel->handles > 0) {
-    my @ready = $sel->can_read($selecttimeout);
-    if ( (time - $starttime) > $timeout) { # waited too long?
-        push @detail, "TIMEOUT: " . scalar($sel->handles) . " responses still pending";
-        last MAINLOOP;
-    }
-    foreach my $sock (@ready) {
-        my ($authority, $ipaddress, $hostpart, $host);
-        my $packet = $res->bgread($sock);
-        foreach my $rr ($packet->answer) {
-            if ($rr->type eq "A") {
-                $ipaddress= $rr->address;
-                $authority= $rr->name;
-                if ($authority=~ /^(\d+\.\d+\.\d+\.\d+)\./) {
-                    $hostpart= $1;
-                    $host= $hostpart2host{$hostpart};
-                } else { $host= "UNKNOWN" }
-                push @summary, $host
-                    unless grep /^$host$/, @summary;
-                push @detail, "$host: $authority: " . $rr->address;
-            }
-        }
-        $sel->remove($sock);
-    }
+    	my @ready = $sel->can_read($selecttimeout);
+    	if ( (time - $starttime) > $timeout) { # waited too long?
+        	push @detail, "TIMEOUT: " . scalar($sel->handles) . "responses still pending";
+        	last MAINLOOP;
+    	}
+    	foreach my $sock (@ready) {
+        	my ($authority, $ipaddress, $hostpart, $host);
+        	my $packet = $res->bgread($sock);
+        	foreach my $rr ($packet->answer) {
+            		if ($rr->type eq "A") {
+                		$ipaddress= $rr->address;
+                		$authority= $rr->name;
+                		if ($authority=~ /^(\d+\.\d+\.\d+\.\d+)\./) {
+                    			$hostpart= $1;
+                    			$host= $hostpart2host{$hostpart};
+                		} else { $host= "???" }
+                			push @summary, $host
+                    				unless grep /^$host$/, @summary;
+                		push @detail, "$host: $authority: " . $rr->address;
+            			}
+        		}
+        	$sel->remove($sock);
+    	}
 }
+
+# No i don't care about the summary
+#if (@summary){
+#    print join(" ", (sort @summary));
+#    print "\n";
+#}
 
 if (@detail){
 
-    my $text =  join("\n",(sort @detail));
+    	my $text =  join("\n",(sort @detail));
 
-    print "Our mail relays are listed on these RBL servers\n";
-    print $text;
+    	if ($debug){
+        	print "Our mail relays are listed on these RBL servers\n";
+        	print $text;
+    	}
+    	else{
+        	my $subject = "RBL check script for ". get_time();
+        	send_mail($email, $subject, $text);
+    	}
 }
+exit 1 if @summary;
 exit 0;
