@@ -161,7 +161,7 @@ while ($sel->handles > 0) {
                 		if ($authority=~ /^(\d+\.\d+\.\d+\.\d+)\./) {
                     			$hostpart= $1;
                     			$host= $hostpart2host{$hostpart};
-                		} else { $host= "???" }
+                		} else { $host= "BROKEN" }
                 			push @summary, $host
                     				unless grep /^$host$/, @summary;
                 		push @detail, "$host: $authority: " . $rr->address;
