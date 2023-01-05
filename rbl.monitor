@@ -87,13 +87,6 @@ my @rbls2check=(
 my @hosts2check=(
     "smtp-vp01.sig.oregonstate.edu",
     "smtp-vp02.sig.oregonstate.edu",
-    "smtp-vp03.sig.oregonstate.edu",
-    "relay-vp01.sig.oregonstate.edu",
-    "relay-vp02.sig.oregonstate.edu",
-    "relay-vp03.sig.oregonstate.edu",
-    "exrelay-vp01.sig.oregonstate.edu",
-    "exrelay-vp02.sig.oregonstate.edu",
-    "exrelay-vp03.sig.oregonstate.edu",
 );
 
 if ($listfile) {
